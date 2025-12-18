@@ -1,0 +1,779 @@
+<!doctype doctype>
+<html lang="et" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inside the Computer - Põgenemismäng</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+    
+    @keyframes matrix-fall {
+      0% { transform: translateY(-100%); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(100vh); opacity: 0; }
+    }
+    
+    @keyframes glitch {
+      0%, 100% { transform: translate(0); }
+      20% { transform: translate(-2px, 2px); }
+      40% { transform: translate(2px, -2px); }
+      60% { transform: translate(-2px, -2px); }
+      80% { transform: translate(2px, 2px); }
+    }
+    
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 150, 0.5); }
+      50% { box-shadow: 0 0 40px rgba(0, 255, 150, 0.8); }
+    }
+    
+    @keyframes door-open {
+      from { transform: scaleY(1); }
+      to { transform: scaleY(0); }
+    }
+    
+    @keyframes binary-float {
+      0% { transform: translateY(0) translateX(0); opacity: 0.3; }
+      50% { opacity: 0.6; }
+      100% { transform: translateY(-50px) translateX(20px); opacity: 0; }
+    }
+    
+    .matrix-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+    
+    .binary-code {
+      position: absolute;
+      font-family: 'Courier New', monospace;
+      color: #00ff96;
+      font-size: 14px;
+      animation: binary-float 4s infinite;
+      opacity: 0.3;
+    }
+    
+    .glitch-effect {
+      animation: glitch 0.3s;
+    }
+    
+    .door-animation {
+      animation: door-open 0.6s ease-out forwards;
+    }
+    
+    .code-block {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border: 1px solid #00ff96;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      color: #00ff96;
+      overflow-x: auto;
+      box-shadow: 0 0 20px rgba(0, 255, 150, 0.3);
+    }
+    
+    .zone-ram { background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); }
+    .zone-cpu { background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); }
+    .zone-kernel { background: linear-gradient(135deg, #000000, #0a0a0a, #1a1a1a); }
+    
+    .progress-node {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #1a1a2e;
+      border: 2px solid #00ff96;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: all 0.3s;
+    }
+    
+    .progress-node.active {
+      animation: pulse-glow 2s infinite;
+      background: #00ff96;
+      color: #000;
+    }
+    
+    .progress-node.completed {
+      background: #00ff96;
+      color: #000;
+    }
+    
+    .progress-line {
+      width: 60px;
+      height: 2px;
+      background: #00ff96;
+      opacity: 0.3;
+    }
+    
+    .progress-line.completed {
+      opacity: 1;
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full">
+  <div id="app" class="w-full h-full relative overflow-hidden"></div>
+  <script>
+    const defaultConfig = {
+      game_title: "Inside the Computer",
+      intro_text: "Sa oled sattunud arvuti sisse..."
+    };
+    
+    let currentLevel = 0;
+    let currentQuestion = 0;
+    let wrongAnswers = 0;
+    let correctAnswers = 0;
+    let gameStartTime = null;
+    let isAnswerConfirmed = false;
+    let selectedAnswer = null;
+    
+    const levels = [
+      {
+        name: "RAM Zone",
+        icon: "💾",
+        class: "zone-ram",
+        description: "Mälu piirkond - Põhimõisted"
+      },
+      {
+        name: "CPU Core",
+        icon: "⚙️",
+        class: "zone-cpu",
+        description: "Protsessori tuum - Loogilised struktuurid"
+      },
+      {
+        name: "System Kernel",
+        icon: "🔥",
+        class: "zone-kernel",
+        description: "Süsteemi tuum - Eksperdimoodul"
+      }
+    ];
+    
+    const questions = [
+      // ALGAJA - RAM Zone
+      {
+        level: 0,
+        question: "Milline on õige viis JavaScript muutuja deklareerimiseks?",
+        code: null,
+        options: [
+          "variable x = 10;",
+          "let x = 10;",
+          "int x = 10;",
+          "x := 10;"
+        ],
+        correct: 1,
+        explanation: "JavaScriptis kasutatakse muutujate deklareerimiseks võtmesõnu <code>let</code>, <code>const</code> või <code>var</code>. <code>let</code> on kaasaegne viis deklareerida muutuv väärtus. <code>int</code> on kasutusel näiteks C++ või Java keeles, aga mitte JavaScriptis."
+      },
+      {
+        level: 0,
+        question: "Mis on selle Python koodi väljund?",
+        code: "x = 5\ny = '5'\nprint(x == y)",
+        options: [
+          "True",
+          "False",
+          "5",
+          "Error"
+        ],
+        correct: 1,
+        explanation: "Pythonis võrdleb <code>==</code> nii väärtust kui ka tüüpi. Kuna <code>x</code> on integer (5) ja <code>y</code> on string ('5'), on need erinevad, seega on vastus <code>False</code>."
+      },
+      {
+        level: 0,
+        question: "Milline andmetüüp on õige Boolean väärtuse jaoks?",
+        code: null,
+        options: [
+          "true/false (väikeste tähtedega)",
+          "True/False (suurte tähtedega)",
+          "1/0 (numbrid)",
+          "Sõltub programmeerimiskeelest"
+        ],
+        correct: 3,
+        explanation: "JavaScriptis kasutatakse <code>true</code>/<code>false</code> (väikeste tähtedega), Pythonis aga <code>True</code>/<code>False</code> (suure algustähega). Mõlemas keeles võivad 1 ja 0 käituda boolean-väärtustena, kuid tõeline boolean tüüp sõltub keelest."
+      },
+      {
+        level: 0,
+        question: "Mis on funktsiooni tagastusväärtus?",
+        code: "def get_name():\n    name = 'Anna'\n    print(name)",
+        options: [
+          "'Anna'",
+          "None",
+          "name",
+          "Error"
+        ],
+        correct: 1,
+        explanation: "See funktsioon ainult prindib väärtuse, aga ei tagasta (return) midagi. Pythonis, kui funktsioon ei tagasta midagi eksplitsiitselt, on tagastusväärtus <code>None</code>. <code>print()</code> ei ole sama mis <code>return</code>!"
+      },
+      {
+        level: 0,
+        question: "Kuidas õigesti luua tühja massiivi JavaScriptis?",
+        code: null,
+        options: [
+          "let arr = [];",
+          "let arr = array();",
+          "let arr = new List();",
+          "let arr = {};"
+        ],
+        correct: 0,
+        explanation: "JavaScriptis luuakse massiiv (array) kasutades kandilisi sulge <code>[]</code>. <code>{}</code> loob objekti (object), mitte massiivi. <code>array()</code> ja <code>new List()</code> ei ole JavaScript standard süntaks."
+      },
+      
+      // EDASIJÕUDNU - CPU Core
+      {
+        level: 1,
+        question: "Mida prindib see tsükkel?",
+        code: "for i in range(3):\n    print(i)",
+        options: [
+          "0 1 2",
+          "1 2 3",
+          "0 1 2 3",
+          "3"
+        ],
+        correct: 0,
+        explanation: "Pythonis <code>range(3)</code> genereerib numbrid 0-st kuni 2-ni (3 ei ole kaasatud). Seega tsükkel prindib: 0, 1, 2. <code>range()</code> alustab alati 0-st, kui alguspunkti pole määratud."
+      },
+      {
+        level: 1,
+        question: "Leia viga selles koodis:",
+        code: "let numbers = [1, 2, 3];\nfor (let i = 0; i <= numbers.length; i++) {\n    console.log(numbers[i]);\n}",
+        options: [
+          "Pole viga",
+          "Tingimus peaks olema i < numbers.length",
+          "Peaks kasutama while tsüklit",
+          "numbers.length on vale"
+        ],
+        correct: 1,
+        explanation: "⚠️ Viga: <code>i &lt;= numbers.length</code> üritab pöörduda indeksi 3 juurde, kuid massiiv lõpeb indeksil 2. See põhjustab <code>undefined</code> väärtuse. Õige on kasutada <code>i &lt; numbers.length</code>, kuna massiivi indeksid algavad 0-st."
+      },
+      {
+        level: 1,
+        question: "Mis on selle koodi väljund?",
+        code: "let obj = {name: 'Kalle', age: 25};\nlet key = 'name';\nconsole.log(obj[key]);",
+        options: [
+          "undefined",
+          "'name'",
+          "'Kalle'",
+          "Error"
+        ],
+        correct: 2,
+        explanation: "✨ Objekte saab kasutada nii punkt-notatsiooni (<code>obj.name</code>) kui ka kantsulgude abil (<code>obj[key]</code>). Siin <code>key</code> muutuja sisaldab stringi 'name', seega <code>obj[key]</code> tagastab <code>'Kalle'</code>. See on dünaamiline võtme kasutus!"
+      },
+      {
+        level: 1,
+        question: "Milline tingimuslause on õigesti kirjutatud?",
+        code: null,
+        options: [
+          "if x = 5:",
+          "if (x == 5) {",
+          "if x equals 5:",
+          "if [x == 5]"
+        ],
+        correct: 1,
+        explanation: "JavaScriptis on õige süntaks <code>if (tingimus) { ... }</code>. Võrdlemisel kasutame <code>==</code> või <code>===</code>, mitte <code>=</code> (mis on omistamine). Pythonis oleks süntaks <code>if x == 5:</code> (ilma sulgudeta ja kooloniga)."
+      },
+      {
+        level: 1,
+        question: "Mis juhtub selle koodiga?",
+        code: "let arr = [10, 20, 30];\narr.push(40);\nconsole.log(arr.length);",
+        options: [
+          "3",
+          "4",
+          "40",
+          "Error"
+        ],
+        correct: 1,
+        explanation: "<code>push()</code> meetod lisab massiivi lõppu uue elemendi. Alguses on massiivil 3 elementi, pärast <code>push(40)</code> on 4 elementi. <code>length</code> atribuut tagastab massiivi elementide arvu, seega vastus on 4."
+      },
+      
+      // EKSPERT - System Kernel
+      {
+        level: 2,
+        question: "Mis on rekursiooni alustingimus (base case)?",
+        code: "def factorial(n):\n    if n == 0:\n        return 1\n    return n * factorial(n - 1)",
+        options: [
+          "n * factorial(n - 1)",
+          "if n == 0: return 1",
+          "factorial(n - 1)",
+          "return 1"
+        ],
+        correct: 1,
+        explanation: "✨ Alustingimus (base case) on <code>if n == 0: return 1</code>, mis peatab rekursiooni. Ilma selleta jätkuks funktsioon end lõpmatult kutsumast, põhjustades stack overflow vea. Iga rekursiivne funktsioon vajab alustingimust!"
+      },
+      {
+        level: 2,
+        question: "Leia viga selles asinhroonses koodis:",
+        code: "async function getData() {\n    let data = fetch('api/data');\n    console.log(data.name);\n}",
+        options: [
+          "Pole viga",
+          "Puudub await võtmesõna",
+          "fetch on vale",
+          "async on valesti kasutatud"
+        ],
+        correct: 1,
+        explanation: "⚠️ <code>fetch()</code> tagastab Promise'i, mitte andmed ise. Peame kasutama <code>await</code>: <code>let data = await fetch('api/data')</code>. Ilma <code>await</code>-ita üritame lugeda <code>.name</code> atribuuti Promise objektilt, mis annab undefined."
+      },
+      {
+        level: 2,
+        question: "Mis on selle koodi ajaline keerukus (Big O)?",
+        code: "for (let i = 0; i < n; i++) {\n    for (let j = 0; j < n; j++) {\n        console.log(i, j);\n    }\n}",
+        options: [
+          "O(n)",
+          "O(n²)",
+          "O(log n)",
+          "O(2n)"
+        ],
+        correct: 1,
+        explanation: "Kaks pesastatud tsüklit, millest mõlemad käivad <code>n</code> korda, annavad ajalise keerukuse <code>O(n²)</code>. Kui <code>n = 10</code>, siis console.log käivitatakse 100 korda. Pesastatud tsüklid korrutavad keerukust!"
+      },
+      {
+        level: 2,
+        question: "Milline on callback funktsiooni eesmärk?",
+        code: "function processData(data, callback) {\n    let result = data * 2;\n    callback(result);\n}",
+        options: [
+          "Salvestada andmeid",
+          "Käivitada funktsioon pärast operatsiooni",
+          "Luua tsükkel",
+          "Tagastada väärtus"
+        ],
+        correct: 1,
+        explanation: "✨ Callback on funktsioon, mis antakse parameetrina teisele funktsioonile ja käivitatakse hiljem (pärast teatud operatsiooni). Siin <code>callback(result)</code> käivitab funktsiooni, mis anti parameetrina. See on asünkroonse programmeerimise alus!"
+      },
+      {
+        level: 2,
+        question: "Mis on closure (sulund) JavaScriptis?",
+        code: "function outer() {\n    let count = 0;\n    return function inner() {\n        count++;\n        return count;\n    }\n}",
+        options: [
+          "Viga koodis",
+          "Funktsioon, mis mäletab oma loomise konteksti",
+          "Tsükkel",
+          "Globaalne muutuja"
+        ],
+        correct: 1,
+        explanation: "✨ Closure (sulund) on kui sisemine funktsioon (<code>inner</code>) mäletab välimise funktsiooni (<code>outer</code>) muutujaid (<code>count</code>), isegi kui välimine funktsioon on juba lõpetanud. See võimaldab privaatseid muutujaid ja on võimas pattern JavaScriptis!"
+      }
+    ];
+    
+    function createBinaryBackground() {
+      const container = document.createElement('div');
+      container.className = 'matrix-bg';
+      
+      for (let i = 0; i < 30; i++) {
+        const binary = document.createElement('div');
+        binary.className = 'binary-code';
+        binary.textContent = Math.random() > 0.5 ? '1' : '0';
+        binary.style.left = Math.random() * 100 + '%';
+        binary.style.top = Math.random() * 100 + '%';
+        binary.style.animationDelay = Math.random() * 4 + 's';
+        container.appendChild(binary);
+      }
+      
+      return container;
+    }
+    
+    function renderStartScreen() {
+      const config = window.elementSdk?.config || defaultConfig;
+      return `
+        ${createBinaryBackground().outerHTML}
+        <div class="relative z-10 w-full h-full flex items-center justify-center p-4" style="background: linear-gradient(135deg, rgba(0,0,0,0.8), rgba(10,25,47,0.9));">
+          <div class="max-w-2xl w-full text-center">
+            <div class="mb-8">
+              <h1 class="text-5xl md:text-6xl font-bold mb-4" style="color: #00ff96; text-shadow: 0 0 20px rgba(0,255,150,0.5);">
+                ${config.game_title || defaultConfig.game_title}
+              </h1>
+              <p class="text-xl text-cyan-300 mb-6">🚀 Põgenemismäng programmeerimise teemal</p>
+            </div>
+            
+            <div class="bg-gray-900 border-2 border-cyan-500 rounded-lg p-6 mb-8" style="box-shadow: 0 0 30px rgba(0,255,255,0.3);">
+              <p class="text-lg text-cyan-100 mb-4">
+                ${config.intro_text || defaultConfig.intro_text} Pead põgenema läbi arvuti komponentide, lahendades programmeerimisülesandeid!
+              </p>
+              <p class="text-yellow-400 mb-2">⚠️ Hoiatus: 3 valet vastust = SYSTEM CRASH!</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              ${levels.map((level, i) => `
+                <div class="bg-gray-800 border border-cyan-500 rounded-lg p-4">
+                  <div class="text-4xl mb-2">${level.icon}</div>
+                  <h3 class="text-cyan-300 font-bold mb-1">${level.name}</h3>
+                  <p class="text-gray-400 text-sm">${level.description}</p>
+                </div>
+              `).join('')}
+            </div>
+            
+            <button id="startBtn" class="px-8 py-4 text-xl font-bold rounded-lg transition-all transform hover:scale-105" style="background: linear-gradient(135deg, #00ff96, #00cc77); color: #000; box-shadow: 0 0 30px rgba(0,255,150,0.5);">
+              🚀 ALUSTA PÕGENEMIST
+            </button>
+          </div>
+        </div>
+      `;
+    }
+    
+    function renderProgressBar() {
+      const totalQuestions = questions.filter(q => q.level === currentLevel).length;
+      const nodes = levels.map((level, i) => {
+        const isActive = i === currentLevel;
+        const isCompleted = i < currentLevel;
+        return `
+          <div class="flex items-center">
+            <div class="progress-node ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}">
+              ${level.icon}
+            </div>
+            ${i < levels.length - 1 ? `<div class="progress-line ${isCompleted ? 'completed' : ''}"></div>` : ''}
+          </div>
+        `;
+      }).join('');
+      
+      return `
+        <div class="flex justify-center items-center mb-6">
+          ${nodes}
+        </div>
+        <div class="text-center mb-4">
+          <div class="text-cyan-300 font-bold text-lg">${levels[currentLevel].name}</div>
+          <div class="text-gray-400 text-sm">Küsimus ${currentQuestion + 1}/${totalQuestions}</div>
+          <div class="text-yellow-400 text-sm mt-2">❤️ Elusid: ${3 - wrongAnswers}/3</div>
+        </div>
+      `;
+    }
+    
+    function renderQuestion() {
+      const levelQuestions = questions.filter(q => q.level === currentLevel);
+      const question = levelQuestions[currentQuestion];
+      const config = window.elementSdk?.config || defaultConfig;
+      
+      return `
+        ${createBinaryBackground().outerHTML}
+        <div class="relative z-10 w-full h-full ${levels[currentLevel].class} p-4 overflow-auto">
+          <div class="max-w-3xl mx-auto">
+            <div class="mb-4">
+              <button id="restartBtn" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-all">
+                🔄 System Restart
+              </button>
+            </div>
+            
+            ${renderProgressBar()}
+            
+            <div class="code-block mb-6">
+              <div class="text-cyan-400 mb-3 font-bold">📋 KÜSIMUS:</div>
+              <div class="text-white text-lg mb-4">${question.question}</div>
+              ${question.code ? `
+                <div class="bg-black bg-opacity-50 p-4 rounded border border-cyan-700 mt-4">
+                  <pre class="text-green-400 text-sm overflow-x-auto"><code>${question.code}</code></pre>
+                </div>
+              ` : ''}
+            </div>
+            
+            <div class="space-y-3 mb-6">
+              ${question.options.map((option, i) => `
+                <button 
+                  class="answer-btn w-full p-4 text-left rounded-lg border-2 transition-all ${
+                    selectedAnswer === i 
+                      ? 'border-yellow-400 bg-yellow-900 bg-opacity-30' 
+                      : 'border-cyan-500 bg-gray-800 bg-opacity-50 hover:bg-cyan-900 hover:bg-opacity-30'
+                  }"
+                  data-index="${i}"
+                  ${isAnswerConfirmed ? 'disabled' : ''}
+                >
+                  <span class="text-cyan-300 font-bold mr-3">${String.fromCharCode(65 + i)})</span>
+                  <span class="text-white">${option}</span>
+                </button>
+              `).join('')}
+            </div>
+            
+            <div class="flex gap-3">
+              <button 
+                id="confirmBtn" 
+                class="flex-1 px-6 py-4 font-bold rounded-lg transition-all ${
+                  selectedAnswer !== null && !isAnswerConfirmed
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                }"
+                ${selectedAnswer === null || isAnswerConfirmed ? 'disabled' : ''}
+              >
+                ✅ Kinnita vastus
+              </button>
+            </div>
+            
+            <div id="feedback" class="mt-6"></div>
+          </div>
+        </div>
+      `;
+    }
+    
+    function showFeedback(isCorrect) {
+      const levelQuestions = questions.filter(q => q.level === currentLevel);
+      const question = levelQuestions[currentQuestion];
+      const feedbackEl = document.getElementById('feedback');
+      
+      if (isCorrect) {
+        correctAnswers++;
+        feedbackEl.innerHTML = `
+          <div class="border-2 border-green-500 bg-green-900 bg-opacity-30 rounded-lg p-6 animate-pulse">
+            <div class="text-3xl text-green-400 font-bold mb-3">✅ ACCESS GRANTED</div>
+            <div class="text-white mb-4">
+              <strong>Miks see nii on?</strong><br>
+              ${question.explanation}
+            </div>
+            <button id="nextBtn" class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all">
+              ➡️ Järgmine
+            </button>
+          </div>
+        `;
+      } else {
+        wrongAnswers++;
+        const appEl = document.getElementById('app');
+        appEl.classList.add('glitch-effect');
+        setTimeout(() => appEl.classList.remove('glitch-effect'), 300);
+        
+        if (wrongAnswers >= 3) {
+          setTimeout(() => renderGameOver(), 1000);
+          feedbackEl.innerHTML = `
+            <div class="border-2 border-red-500 bg-red-900 bg-opacity-50 rounded-lg p-6">
+              <div class="text-3xl text-red-400 font-bold mb-3">❌ SYSTEM CRASH!</div>
+              <div class="text-white">Süsteem krahib...</div>
+            </div>
+          `;
+        } else {
+          feedbackEl.innerHTML = `
+            <div class="border-2 border-red-500 bg-red-900 bg-opacity-30 rounded-lg p-6">
+              <div class="text-3xl text-red-400 font-bold mb-3">❌ ACCESS DENIED</div>
+              <div class="text-white mb-4">
+                <strong>Õige vastus:</strong> ${question.options[question.correct]}<br><br>
+                <strong>Miks see nii on?</strong><br>
+                ${question.explanation}
+              </div>
+              <button id="nextBtn" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-all">
+                ➡️ Järgmine
+              </button>
+            </div>
+          `;
+        }
+      }
+      
+      const nextBtn = document.getElementById('nextBtn');
+      if (nextBtn) {
+        nextBtn.addEventListener('click', handleNext);
+      }
+    }
+    
+    function handleNext() {
+      const levelQuestions = questions.filter(q => q.level === currentLevel);
+      
+      if (currentQuestion < levelQuestions.length - 1) {
+        currentQuestion++;
+        isAnswerConfirmed = false;
+        selectedAnswer = null;
+        render();
+      } else if (currentLevel < levels.length - 1) {
+        showLevelTransition();
+      } else {
+        renderVictory();
+      }
+    }
+    
+    function showLevelTransition() {
+      const nextLevel = levels[currentLevel + 1];
+      const appEl = document.getElementById('app');
+      
+      appEl.innerHTML = `
+        ${createBinaryBackground().outerHTML}
+        <div class="relative z-10 w-full h-full flex items-center justify-center" style="background: linear-gradient(135deg, rgba(0,0,0,0.9), rgba(10,25,47,0.95));">
+          <div class="text-center">
+            <div class="text-6xl mb-6 animate-pulse">${nextLevel.icon}</div>
+            <div class="text-4xl font-bold text-cyan-300 mb-4" style="text-shadow: 0 0 20px rgba(0,255,255,0.8);">
+              ENTERING NEW ZONE...
+            </div>
+            <div class="text-2xl text-yellow-400 mb-8">${nextLevel.name}</div>
+            <div class="text-cyan-100">${nextLevel.description}</div>
+          </div>
+        </div>
+      `;
+      
+      setTimeout(() => {
+        currentLevel++;
+        currentQuestion = 0;
+        render();
+      }, 2500);
+    }
+    
+    function renderGameOver() {
+      const appEl = document.getElementById('app');
+      appEl.innerHTML = `
+        ${createBinaryBackground().outerHTML}
+        <div class="relative z-10 w-full h-full flex items-center justify-center p-4" style="background: linear-gradient(135deg, rgba(139,0,0,0.8), rgba(0,0,0,0.9));">
+          <div class="max-w-2xl w-full text-center">
+            <div class="text-8xl mb-6 animate-pulse">💥</div>
+            <h1 class="text-5xl font-bold text-red-400 mb-6" style="text-shadow: 0 0 20px rgba(255,0,0,0.8);">
+              SYSTEM CRASH
+            </h1>
+            <p class="text-2xl text-red-300 mb-8">Süsteem krahis! Sa tegid 3 viga.</p>
+            
+            <div class="bg-gray-900 border-2 border-red-500 rounded-lg p-6 mb-8">
+              <div class="text-red-200 mb-4">
+                <div>📊 Õigeid vastuseid: ${correctAnswers}</div>
+                <div>❌ Valesti: ${wrongAnswers}</div>
+                <div>📍 Jõudsid: ${levels[currentLevel].name}</div>
+              </div>
+            </div>
+            
+            <button id="retryBtn" class="px-8 py-4 bg-red-600 hover:bg-red-700 text-white text-xl font-bold rounded-lg transition-all transform hover:scale-105">
+              🔄 PROOVI UUESTI
+            </button>
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('retryBtn').addEventListener('click', () => {
+        currentLevel = 0;
+        currentQuestion = 0;
+        wrongAnswers = 0;
+        correctAnswers = 0;
+        isAnswerConfirmed = false;
+        selectedAnswer = null;
+        gameStartTime = Date.now();
+        render();
+      });
+    }
+    
+    function renderVictory() {
+      const elapsedTime = Math.floor((Date.now() - gameStartTime) / 1000);
+      const minutes = Math.floor(elapsedTime / 60);
+      const seconds = elapsedTime % 60;
+      const appEl = document.getElementById('app');
+      
+      appEl.innerHTML = `
+        ${createBinaryBackground().outerHTML}
+        <div class="relative z-10 w-full h-full flex items-center justify-center p-4" style="background: linear-gradient(135deg, rgba(0,139,0,0.3), rgba(0,0,0,0.9));">
+          <div class="max-w-2xl w-full text-center">
+            <div class="text-8xl mb-6 animate-pulse">🚀</div>
+            <h1 class="text-5xl font-bold mb-4" style="color: #00ff96; text-shadow: 0 0 30px rgba(0,255,150,0.8);">
+              ESCAPE SUCCESSFUL!
+            </h1>
+            <div class="text-3xl text-yellow-400 mb-8">🏆 System Hacker Expert 💻⚡</div>
+            
+            <div class="bg-gray-900 border-2 border-green-500 rounded-lg p-8 mb-8" style="box-shadow: 0 0 40px rgba(0,255,150,0.4);">
+              <h2 class="text-2xl text-cyan-300 font-bold mb-4">📊 STATISTIKA</h2>
+              <div class="text-green-300 text-xl space-y-2">
+                <div>✅ Õigeid vastuseid: ${correctAnswers}/${questions.length}</div>
+                <div>❌ Vigu: ${wrongAnswers}</div>
+                <div>⏱️ Aeg: ${minutes}m ${seconds}s</div>
+                <div>💎 Data Points kogutud: ${correctAnswers * 100}</div>
+              </div>
+            </div>
+            
+            <div class="mb-8">
+              <div class="text-7xl mb-4">🏆</div>
+              <p class="text-cyan-200 text-lg">
+                Õnnitleme! Oled edukalt põgenenud arvuti süsteemist ja tõestanud end programmeerimise eksperdi!
+              </p>
+            </div>
+            
+            <button id="playAgainBtn" class="px-8 py-4 text-xl font-bold rounded-lg transition-all transform hover:scale-105" style="background: linear-gradient(135deg, #00ff96, #00cc77); color: #000;">
+              🔄 MÄNGI UUESTI
+            </button>
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('playAgainBtn').addEventListener('click', () => {
+        currentLevel = 0;
+        currentQuestion = 0;
+        wrongAnswers = 0;
+        correctAnswers = 0;
+        isAnswerConfirmed = false;
+        selectedAnswer = null;
+        gameStartTime = Date.now();
+        render();
+      });
+    }
+    
+    function render() {
+      const appEl = document.getElementById('app');
+      
+      if (gameStartTime === null) {
+        appEl.innerHTML = renderStartScreen();
+        document.getElementById('startBtn').addEventListener('click', () => {
+          gameStartTime = Date.now();
+          render();
+        });
+      } else {
+        appEl.innerHTML = renderQuestion();
+        
+        document.querySelectorAll('.answer-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            if (!isAnswerConfirmed) {
+              selectedAnswer = parseInt(e.currentTarget.dataset.index);
+              render();
+            }
+          });
+        });
+        
+        const confirmBtn = document.getElementById('confirmBtn');
+        if (confirmBtn) {
+          confirmBtn.addEventListener('click', () => {
+            if (selectedAnswer !== null && !isAnswerConfirmed) {
+              isAnswerConfirmed = true;
+              const levelQuestions = questions.filter(q => q.level === currentLevel);
+              const question = levelQuestions[currentQuestion];
+              showFeedback(selectedAnswer === question.correct);
+            }
+          });
+        }
+        
+        const restartBtn = document.getElementById('restartBtn');
+        if (restartBtn) {
+          restartBtn.addEventListener('click', () => {
+            currentLevel = 0;
+            currentQuestion = 0;
+            wrongAnswers = 0;
+            correctAnswers = 0;
+            isAnswerConfirmed = false;
+            selectedAnswer = null;
+            gameStartTime = null;
+            render();
+          });
+        }
+      }
+    }
+    
+    async function onConfigChange(config) {
+      render();
+    }
+    
+    const capabilities = {
+      recolorables: [],
+      borderables: [],
+      fontEditable: undefined,
+      fontSizeable: undefined
+    };
+    
+    function mapToEditPanelValues(config) {
+      return new Map([
+        ["game_title", config.game_title || defaultConfig.game_title],
+        ["intro_text", config.intro_text || defaultConfig.intro_text]
+      ]);
+    }
+    
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities: () => capabilities,
+        mapToEditPanelValues
+      });
+    }
+    
+    render();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9afd256235c85c24',t:'MTc2NjA0NTAzMC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
